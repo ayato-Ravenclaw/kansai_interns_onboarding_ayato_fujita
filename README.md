@@ -1,0 +1,1 @@
+# kansai_interns_onboarding_ayato_fujita
