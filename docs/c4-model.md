@@ -56,8 +56,8 @@ flowchart TB
     handler["例外ハンドラ<br/>[Component: @RestControllerAdvice]<br/>例外をエラー応答に変換し、ログに残す"]
     uc["Usecase<br/>[Component: Spring @Service]<br/>処理の流れとトランザクション境界"]
     dom["Domain<br/>[Component: Kotlin]<br/>業務ルール・検証"]
-    repo["Repository<br/>[Component: Spring Data JPA]<br/>仕訳・勘定科目を保存・取得する"]
-    infra["Infrastructure<br/>[Component: JPA エンティティ]<br/>テーブルと対応するクラス"]
+    repo["Repository<br/>[Component: jOOQ]<br/>SQL を書いて仕訳・勘定科目を保存・取得する"]
+    infra["Infrastructure<br/>[Component: jOOQ 生成クラス]<br/>テーブルと対応するクラス"]
   end
   db[("データベース<br/>[Container: MySQL]")]
   fe -->|"API を呼ぶ<br/>[JSON/HTTPS]"| ctrl
@@ -65,15 +65,17 @@ flowchart TB
   ctrl -.->|"例外を委譲する"| handler
   uc -->|"業務ルールを適用する"| dom
   uc -->|"保存・取得を依頼する"| repo
-  repo -->|"エンティティを使う"| infra
+  repo -->|"生成クラスを使う"| infra
   infra -->|"読み書きする<br/>[JDBC/SQL]"| db
 ```
 
 - Controller は薄く保つ。リクエストの受付、DTO の変換、レスポンスの返却だけを行う。
 - 依存は Controller → Usecase → Domain / Repository の一方向のみ。
 - 例外は例外ハンドラで共通処理する。
-- domain モデルと JPA エンティティは分ける（`decisions.md` の論点 6）。そのため Infrastructure を独立したコンポーネントとして描いている。
+- 永続化は jOOQ を使う（`decisions.md` の論点 8）。スキーマは Flyway のマイグレーションを正とし、そこから生成クラスを作る。
+- domain モデルと jOOQ の生成クラスは分ける（`decisions.md` の論点 6）。そのため Infrastructure を独立したコンポーネントとして描いている。
 
 ## 未確定の点
 
-- domain モデルと JPA エンティティの変換をどのコンポーネントが担うかは、アーキテクチャ設計書で決める。決まったらレベル 3 の「エンティティを使う」の線を直す。
+- domain と jOOQ 生成クラスの変換をどのコンポーネントが担うかは、アーキテクチャ設計書で決める。決まったらレベル 3 の「生成クラスを使う」の線を直す。
+- Repository のインターフェースをどのレイヤに置くかも、アーキテクチャ設計書で決める。jOOQ では Spring Data のインターフェースを使わないため、置き場所を選べる。
