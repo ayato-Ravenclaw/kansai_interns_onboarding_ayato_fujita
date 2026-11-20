@@ -1,13 +1,16 @@
 # データモデル設計書
 
-作成日：2026-11-13
+作成日：2026-11-13  
+更新日：2026-11-20（PostgreSQL 対応）
 
 ## 概要
 
-会計システムのデータベース設計。3つのテーブルで構成：
+会計システムのデータベース設計（PostgreSQL）。3つのテーブルで構成：
 1. **accounts** — 勘定科目マスタ
 2. **journal_entries** — 仕訳
 3. **journal_entry_lines** — 仕訳行
+
+**DB環境:** PostgreSQL 14+
 
 ## テーブル設計
 
@@ -19,17 +22,20 @@
 
 | カラム名 | 型 | NOT NULL | ユニーク | 主キー | 説明 |
 |---------|-----|---------|--------|--------|------|
-| id | BIGINT | ✓ | - | ✓ | 自動採番の勘定科目ID |
+| id | BIGSERIAL | ✓ | - | ✓ | 自動採番の勘定科目ID |
 | code | VARCHAR(20) | ✓ | ✓ | - | 勘定科目コード（例：110,120,210,310） |
 | name | VARCHAR(20) | ✓ | - | - | 勘定科目名（例：現金、普通預金） |
-| account_category | ENUM('DEBIT', 'CREDIT') | ✓ | - | - | 勘定科目のカテゴリ（常に「借方」か「貸方」） |
-| created_at | DATETIME | ✓ | - | - | 作成日時（Asia/Tokyo） |
-| updated_at | DATETIME | ✓ | - | - | 更新日時（Asia/Tokyo） |
+| account_category | account_category_enum | ✓ | - | - | 勘定科目のカテゴリ（常に「借方」か「貸方」） |
+| created_at | TIMESTAMP | ✓ | - | - | 作成日時（Asia/Tokyo、デフォルト: CURRENT_TIMESTAMP） |
+| updated_at | TIMESTAMP | ✓ | - | - | 更新日時（Asia/Tokyo、trigger で自動更新） |
 
 **制約:**
-- PRIMARY KEY (id)
+- PRIMARY KEY (id) — BIGSERIAL で自動採番
 - UNIQUE (code) — コード重複を防ぐ
-- CHECK (account_category IN ('DEBIT', 'CREDIT'))
+- account_category: account_category_enum 型（CREATE TYPE で事前定義）
+
+**Trigger:**
+- update_timestamp trigger で updated_at を自動更新
 
 **インデックス:**
 - code（一意性を保証、検索高速化）
@@ -44,11 +50,11 @@
 
 | カラム名 | 型 | NOT NULL | ユニーク | 主キー | 説明 |
 |---------|-----|---------|--------|--------|------|
-| id | BIGINT | ✓ | - | ✓ | 自動採番の仕訳ID |
+| id | BIGSERIAL | ✓ | - | ✓ | 自動採番の仕訳ID |
 | transaction_date | DATE | ✓ | - | - | 取引日（年月日、タイムゾーン Asia/Tokyo） |
 | memo | VARCHAR(200) | - | - | - | メモ（任意、200文字まで） |
-| created_at | DATETIME | ✓ | - | - | 作成日時（Asia/Tokyo） |
-| updated_at | DATETIME | ✓ | - | - | 更新日時（Asia/Tokyo） |
+| created_at | TIMESTAMP | ✓ | - | - | 作成日時（Asia/Tokyo、デフォルト: CURRENT_TIMESTAMP） |
+| updated_at | TIMESTAMP | ✓ | - | - | 更新日時（Asia/Tokyo、trigger で自動更新） |
 
 **制約:**
 - PRIMARY KEY (id)
@@ -68,15 +74,15 @@
 
 | カラム名 | 型 | NOT NULL | ユニーク | 主キー | 説明 |
 |---------|-----|---------|--------|--------|------|
-| id | BIGINT | ✓ | - | ✓ | 自動採番の仕訳行ID |
+| id | BIGSERIAL | ✓ | - | ✓ | 自動採番の仕訳行ID |
 | journal_entry_id | BIGINT | ✓ | - | - | 親仕訳のID（外部キー） |
 | description | VARCHAR(100) | - | - | - | 摘要（任意、100文字まで） |
 | debit_account_id | BIGINT | - | - | - | 借方勘定科目のID（外部キー）。金額がある場合は必須 |
 | debit_amount | INT | - | - | - | 借方金額（正の整数。0不可。金額がある場合は必須） |
 | credit_account_id | BIGINT | - | - | - | 貸方勘定科目のID（外部キー）。金額がある場合は必須 |
 | credit_amount | INT | - | - | - | 貸方金額（正の整数。0不可。金額がある場合は必須） |
-| created_at | DATETIME | ✓ | - | - | 作成日時（Asia/Tokyo） |
-| updated_at | DATETIME | ✓ | - | - | 更新日時（Asia/Tokyo） |
+| created_at | TIMESTAMP | ✓ | - | - | 作成日時（Asia/Tokyo、デフォルト: CURRENT_TIMESTAMP） |
+| updated_at | TIMESTAMP | ✓ | - | - | 更新日時（Asia/Tokyo、trigger で自動更新） |
 
 **制約:**
 - PRIMARY KEY (id)
@@ -106,32 +112,32 @@
 ```mermaid
 erDiagram
   ACCOUNTS {
-    BIGINT id PK
+    BIGSERIAL id PK
     VARCHAR code UK "ユニーク"
     VARCHAR name
-    ENUM account_category
-    DATETIME created_at
-    DATETIME updated_at
+    account_category_enum account_category
+    TIMESTAMP created_at "DEFAULT CURRENT_TIMESTAMP"
+    TIMESTAMP updated_at "trigger で自動更新"
   }
   
   JOURNAL_ENTRIES {
-    BIGINT id PK
+    BIGSERIAL id PK
     DATE transaction_date "降順ソート用"
     VARCHAR memo
-    DATETIME created_at
-    DATETIME updated_at
+    TIMESTAMP created_at "DEFAULT CURRENT_TIMESTAMP"
+    TIMESTAMP updated_at "trigger で自動更新"
   }
   
   JOURNAL_ENTRY_LINES {
-    BIGINT id PK
+    BIGSERIAL id PK
     BIGINT journal_entry_id FK
     VARCHAR description
     BIGINT debit_account_id FK "NULL可"
     INT debit_amount "NULL可、0不可"
     BIGINT credit_account_id FK "NULL可"
     INT credit_amount "NULL可、0不可"
-    DATETIME created_at
-    DATETIME updated_at
+    TIMESTAMP created_at "DEFAULT CURRENT_TIMESTAMP"
+    TIMESTAMP updated_at "trigger で自動更新"
   }
   
   ACCOUNTS ||--o{ JOURNAL_ENTRY_LINES : "借方として参照"
@@ -202,5 +208,32 @@ erDiagram
 ## マイグレーション（Flyway）
 
 このテーブル定義を Flyway マイグレーションファイル（例：V1__init_schema.sql）として実装。
+PostgreSQL での実装手順：
+
+1. **ENUM 型を先に定義**
+   ```sql
+   CREATE TYPE account_category_enum AS ENUM ('DEBIT', 'CREDIT');
+   ```
+
+2. **テーブルを作成**
+   - BIGINT ではなく BIGSERIAL で自動採番
+   - DATETIME ではなく TIMESTAMP を使用
+   - ENUM 型は CREATE TYPE で定義した型名を使用
+
+3. **Trigger で updated_at を自動更新**
+   ```sql
+   CREATE OR REPLACE FUNCTION update_timestamp()
+   RETURNS TRIGGER AS $$
+   BEGIN
+     NEW.updated_at = CURRENT_TIMESTAMP;
+     RETURN NEW;
+   END;
+   $$ LANGUAGE plpgsql;
+   ```
+
+4. **外部キー制約と CHECK 制約を設定**
+   - ON DELETE CASCADE / RESTRICT を明示
+   - CHECK 制約で金額、文字列長、一対対応を検証
+
 jOOQ はこのスキーマから生成クラスを自動生成する。
 
