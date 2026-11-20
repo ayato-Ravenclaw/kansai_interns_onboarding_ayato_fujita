@@ -1,0 +1,20 @@
+{
+  "pii_allowlist": [
+    {
+      "pattern": "user@example\\.com",
+      "note": "why this is exempt"
+    }
+  ],
+  "credential_allowlist": [
+    {
+      "pattern": "sk-test-[A-Za-z0-9]+",
+      "note": "why this is exempt"
+    }
+  ],
+  "injection_allowlist": [
+    {
+      "pattern": "your injection allowlist pattern here",
+      "note": "why this is exempt"
+    }
+  ]
+}
